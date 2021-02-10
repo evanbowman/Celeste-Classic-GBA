@@ -15,6 +15,9 @@
 
 #include "soundbank_bin.h"
 
+#include "gbp.h"
+#include "rumble.h"
+
 
 //-- types --
 //-----------
@@ -170,7 +173,7 @@ typedef struct
 
 typedef struct
 {
-	Object obj;	
+	Object obj;
 } ALIGN(4) Orb;
 
 typedef struct
@@ -824,7 +827,7 @@ void draw_hair(float x, float y, s8 facing)
 void lifeup_init(Lifeup* this, s16 x, s16 y)
 {
 	init_object(&(this->obj),type_lifeup,x-8,y-4);
-	
+
 	this->obj.spd.y = -0.25;
 	this->duration = 30;
 	this->flash = 0;
@@ -855,7 +858,7 @@ void smoke_init(s16 x, s16 y)
 	{
 		Object* this = &(smoke[i]);
 		if (!this->active)
-		{			
+		{
 			init_object(this, type_smoke, x, y);
 
 			this->spr = 29;
@@ -1177,7 +1180,7 @@ void player_update(Player* this)
 	//-- animation
 	if (frames%4 == 0)
 		this->spr_off += 1;
-	
+
 	if (!on_ground) {
 		if (is_solid(&(this->obj),input,0))
 			this->obj.spr = 5;
@@ -1470,7 +1473,7 @@ void break_fall_floor(Fall_Floor* obj)
 		smoke_init(obj->obj.x,obj->obj.y);
 		Spring* hit = (Spring*)collide(&(obj->obj),type_spring,0,-1);
 		if (hit != NULL) {
-			break_spring(hit); 
+			break_spring(hit);
 		}
 	}
 }
@@ -1788,7 +1791,7 @@ void flag_draw(Flag* this)
 		u8 diff = player.obj.x;
 		if (player.obj.x > 64)
 			diff = 128 - player.obj.x;
-		
+
 		if (diff > 36)
 		{
 			rectfill(0,0,3,16,0);
@@ -1827,11 +1830,11 @@ void flag_draw(Flag* this)
 		}
 
 		draw_time(49-4,16+6);
-		
+
 		{
 			char str[16] = "deaths:9999";
 			s8 xoff = 4;
-			
+
 			if (cheated)
 			{
 				str[0] = 'c';
@@ -2512,7 +2515,7 @@ void _draw()
 				p->t -= 1;
 				if (p->t <= 0)
 					p->active = false;
-				
+
 				pal(7,14+p->t%2,PAL_PLAYER);
 				spr(128+clamp((p->t/2),0,3),p->x-4,p->y-4,1,PAL_PLAYER,0,0);
 			}
@@ -2667,17 +2670,31 @@ static void init_overlay()
 	}
 }
 
+static void init_rumble(void (*rumble_isr)(void))
+{
+	irqEnable(IRQ_SERIAL);
+	irqSet(IRQ_SERIAL, rumble_isr);
+}
+
+
 int main(void)
 {
 	// Set up the interrupt handlers
 	irqInit();
 
 	// Maxmod requires the vblank interrupt to reset sound DMA.
-	// Link the VBlank interrupt to mmVBlank, and enable it. 
+	// Link the VBlank interrupt to mmVBlank, and enable it.
 	irqSet(IRQ_VBLANK, mmVBlank);
 
 	// Enable Vblank Interrupt to allow VblankIntrWait
 	irqEnable(IRQ_VBLANK);
+
+        if (unlock_gameboy_player(NULL)) {
+            struct RumbleGBPConfig conf = {init_rumble};
+            rumble_init(&conf);
+	} else {
+            rumble_init(NULL);
+	}
 
 	// initialise maxmod with soundbank and 8 channels
     mmInitDefault((mm_addr)soundbank_bin, 8);
@@ -2692,7 +2709,7 @@ int main(void)
 	REG_BG0CNT = TILE_BASE(0) | MAP_BASE(3) | BG_16_COLOR | BG_SIZE_0 | BG_PRIORITY(0); //overlays
 	REG_BG1CNT = TILE_BASE(0) | MAP_BASE(4) | BG_16_COLOR | BG_SIZE_0 | BG_PRIORITY(1); //main tile layer
 	REG_BG2CNT = TILE_BASE(0) | MAP_BASE(5) | BG_16_COLOR | BG_SIZE_0 | BG_PRIORITY(2); //clouds (close)
-	REG_BG3CNT = TILE_BASE(0) | MAP_BASE(6) | BG_16_COLOR | BG_SIZE_0 | BG_PRIORITY(3); //clouds, background color	
+	REG_BG3CNT = TILE_BASE(0) | MAP_BASE(6) | BG_16_COLOR | BG_SIZE_0 | BG_PRIORITY(3); //clouds, background color
 
 	init_clouds();
 	init_overlay();
@@ -2716,8 +2733,8 @@ int main(void)
 		kdown = keysDown();
 
 		//if (btnp(KEY_SELECT))
-		//	next_room();		
-		
+		//	next_room();
+
 		if (btnp(KEY_START))
 		{
 			if (level_index() < 30)
@@ -2735,14 +2752,14 @@ int main(void)
 		{
 			if (freeze <= 0)
 				update_screen();
-	
+
 			_update();
-			
+
 			//toggle screen shake
 			if (btnp(KEY_SELECT))
 				can_shake = !can_shake;
 		}
-		
+
 		//reset key combo
 		if (btn(KEY_SELECT) && btn(KEY_START) && btn(KEY_L) && btn(KEY_R))
 		{
@@ -2758,7 +2775,7 @@ int main(void)
 		mmFrame();
 
 		if (!paused)
-			_draw();		
+			_draw();
 	}
 
 	return 0;
